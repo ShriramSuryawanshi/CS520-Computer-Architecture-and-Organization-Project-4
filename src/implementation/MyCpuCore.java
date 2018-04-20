@@ -9,9 +9,11 @@ import baseclasses.PipelineRegister;
 import baseclasses.PipelineStageBase;
 import baseclasses.CpuCore;
 import tools.InstructionSequence;
+import utilitytypes.IGlobals;
 import utilitytypes.IPipeReg;
 import utilitytypes.IPipeStage;
 import static utilitytypes.IProperties.*;
+import utilitytypes.IRegFile;
 import utilitytypes.Logger;
 import voidtypes.VoidRegister;
 
@@ -25,8 +27,16 @@ public class MyCpuCore extends CpuCore {
 
     static final String[] producer_props = {RESULT_VALUE};
 
+    @Override
     public void initProperties() {
         properties = new GlobalData();
+        IGlobals globals = (GlobalData) getCore().getGlobals();
+
+        for (int i = 0; i < 32; i++) {
+            GlobalData.rat[i] = i;
+            IRegFile regfile = globals.getRegisterFile();
+            regfile.markUsed(i, true);
+        }
     }
 
     public void loadProgram(InstructionSequence program) {
@@ -104,7 +114,7 @@ public class MyCpuCore extends CpuCore {
         connect("Decode", "DecodeToIntMul", "IntMul");
 
         //@shree - adding connections for new stages        
-        connect("Decode", "DecodeToIntDiv", "IntDiv");        
+        connect("Decode", "DecodeToIntDiv", "IntDiv");
         connect("Decode", "DecodeToFloatAddSub", "FloatAddSub");
         connect("Decode", "DecodeToFloatMul", "FloatMul");
         connect("Decode", "DecodeToFloatDiv", "FloatDiv");
@@ -128,9 +138,8 @@ public class MyCpuCore extends CpuCore {
         addForwardingSource("IntDivToWriteback");
         addForwardingSource("FloatDivToWriteback");
         addForwardingSource("MemUnit.out");
-        
-        //   addForwardingSource("MemoryToWriteback");
 
+        //   addForwardingSource("MemoryToWriteback");
         // MSFU.specifyForwardingSources is where this forwarding source is added
         // addForwardingSource("MSFU.out");
     }
