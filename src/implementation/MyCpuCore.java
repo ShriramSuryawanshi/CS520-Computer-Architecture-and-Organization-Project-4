@@ -30,11 +30,13 @@ public class MyCpuCore extends CpuCore {
     @Override
     public void initProperties() {
         properties = new GlobalData();
+
+        // @shree - initializing rat
         IGlobals globals = (GlobalData) getCore().getGlobals();
+        IRegFile regfile = globals.getRegisterFile();
 
         for (int i = 0; i < 32; i++) {
             GlobalData.rat[i] = i;
-            IRegFile regfile = globals.getRegisterFile();
             regfile.markUsed(i, true);
         }
     }
@@ -47,6 +49,18 @@ public class MyCpuCore extends CpuCore {
         properties.setProperty("running", true);
         while (properties.getPropertyBoolean("running")) {
             Logger.out.println("## Cycle number: " + cycle_number);
+
+            IGlobals globals = (GlobalData) getCore().getGlobals();
+            IRegFile regfile = globals.getRegisterFile();
+
+            //@shree - setting registers free
+            for (int i = 0; i < 256; i++) {
+
+                if ((!regfile.isInvalid(i)) && (regfile.isRenamed(i)) && (regfile.isUsed(i))) {
+                    regfile.markUsed(i, false);
+                    Logger.out.println("# Freeing: P" + i);
+                }
+            }
             advanceClock();
         }
     }

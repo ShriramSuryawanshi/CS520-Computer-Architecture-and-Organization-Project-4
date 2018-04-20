@@ -20,6 +20,10 @@ import utilitytypes.IGlobals;
 import utilitytypes.IPipeReg;
 import static utilitytypes.IProperties.*;
 import utilitytypes.IRegFile;
+import static utilitytypes.IRegFile.CLEAR_FLOAT;
+import static utilitytypes.IRegFile.CLEAR_RENAMED;
+import static utilitytypes.IRegFile.SET_INVALID;
+import static utilitytypes.IRegFile.SET_USED;
 import utilitytypes.Logger;
 import utilitytypes.Operand;
 import voidtypes.VoidLabelTarget;
@@ -195,17 +199,63 @@ public class AllMyStages {
             Operand oper0 = ins.getOper0();
             IRegFile regfile = globals.getRegisterFile();
 
-            // This code is to prevent having more than one of the same regster
-            // as a destiation register in the pipeline at the same time.
-            if (opcode.needsWriteback()) {
-                int oper0reg = oper0.getRegisterNumber();
-                if (regfile.isInvalid(oper0reg)) {
-                    //Logger.out.println("Stall because dest R" + oper0reg + " is invalid");
-                    setResourceWait("Dest:" + oper0.getRegisterName());
-                    return;
+            // @shree - Register renaming for Source1
+            if (ins.getSrc1().isRegister()) {
+                ins.getSrc1().rename(GlobalData.rat[ins.getSrc1().getRegisterNumber()]);
+            }
+
+            // @shree - Register renaming for Source2
+            if (ins.getSrc2().isRegister()) {
+                ins.getSrc2().rename(GlobalData.rat[ins.getSrc2().getRegisterNumber()]);
+            }
+
+            // @shree - Register renaming if oper0IsSource
+            if (opcode.oper0IsSource() && ins.getOpcode() != EnumOpcode.JMP) {
+                ins.getOper0().rename(GlobalData.rat[ins.getOper0().getRegisterNumber()]);
+            }
+
+            if (ins.getOpcode() == EnumOpcode.JMP) {
+
+                if (ins.getOper0().isRegister()) {
+                    ins.getOper0().rename(GlobalData.rat[ins.getOper0().getRegisterNumber()]);
                 }
             }
 
+            int available_reg = 0;
+            // @shree - getting availble physical register
+            if (!opcode.oper0IsSource()) {
+
+                for (int i = 0; i <= 256; i++) {
+
+                    if (!regfile.isUsed(i)) {
+                        available_reg = i;
+                        break;
+                    }
+                }
+            }
+
+            if (ins.getOpcode() == EnumOpcode.CALL) {
+                regfile.markRenamed(GlobalData.rat[ins.getOper0().getRegisterNumber()], true);
+
+                regfile.changeFlags(available_reg, IRegFile.SET_USED | IRegFile.SET_INVALID, IRegFile.CLEAR_FLOAT | IRegFile.CLEAR_RENAMED);
+
+                Logger.out.println("Dest R" + oper0.getRegisterNumber() + ": P" + GlobalData.rat[oper0.getRegisterNumber()] + " released, P" + available_reg + " allocated");
+
+                GlobalData.rat[oper0.getRegisterNumber()] = available_reg;
+
+                ins.getOper0().rename(available_reg);
+            }
+
+            // This code is to prevent having more than one of the same regster
+            // as a destiation register in the pipeline at the same time.
+//            if (opcode.needsWriteback()) {
+//                int oper0reg = oper0.getRegisterNumber();
+//                if (regfile.isInvalid(oper0reg)) {
+//                    //Logger.out.println("Stall because dest R" + oper0reg + " is invalid");
+//                    setResourceWait("Dest:" + oper0.getRegisterName());
+//                    return;
+//                }
+//            }
             // See what operands can be fetched from the register file
             registerFileLookup(input);
 
@@ -431,7 +481,8 @@ public class AllMyStages {
 
             // Loop over source operands, looking to see if any can be
             // forwarded to the next stage.
-            for (int sn = 0; sn < 3; sn++) {
+            for (int sn = 0;
+                    sn < 3; sn++) {
                 int srcRegNum = srcRegs[sn];
                 // Skip any operands that are not register sources
                 if (srcRegNum < 0) {
@@ -467,20 +518,43 @@ public class AllMyStages {
                 }
             }
 
+            if (!opcode.oper0IsSource()) {
+                // @shree - renaming the destination
+                if (ins.getOpcode() == EnumOpcode.NOP || ins.getOpcode() == EnumOpcode.HALT) {
+                    // @shree - skipping renaming
+                } else {
+
+                    regfile.markRenamed(GlobalData.rat[ins.getOper0().getRegisterNumber()], true);
+
+                    regfile.changeFlags(available_reg, IRegFile.SET_USED | IRegFile.SET_INVALID, IRegFile.CLEAR_FLOAT | IRegFile.CLEAR_RENAMED);
+
+                    Logger.out.println("Dest R" + oper0.getRegisterNumber() + ": P" + GlobalData.rat[oper0.getRegisterNumber()] + " released, P" + available_reg + " allocated");
+
+                    GlobalData.rat[oper0.getRegisterNumber()] = available_reg;
+
+                    ins.getOper0().rename(available_reg);
+                }
+            }
+
             // If we managed to find all source operands, mark the destination
             // register invalid then finish putting data into the output latch 
             // and send it.
             // Mark the destination register invalid
+            // @shree - updating the condition
             if (opcode.needsWriteback()) {
                 int oper0reg = oper0.getRegisterNumber();
-                regfile.markInvalid(oper0reg);
+                if (!regfile.isInvalid(oper0reg)) {
+                    //   regfile.markInvalid(oper0reg);
+                }
             }
 
             // Copy the forward# properties
             output.copyAllPropertiesFrom(input);
             // Copy the instruction
+
             output.setInstruction(ins);
             // Send the latch data to the next stage
+
             output.write();
 
             // And don't forget to indicate that the input was consumed!
@@ -570,7 +644,7 @@ public class AllMyStages {
                     throw new RuntimeException("Non-memory instruction got into Memory stage");
             }
         }
-    } 
+    }
 
     /**
      * * Writeback Stage **
