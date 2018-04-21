@@ -235,15 +235,17 @@ public class AllMyStages {
             }
 
             if (ins.getOpcode() == EnumOpcode.CALL) {
-                regfile.markRenamed(GlobalData.rat[ins.getOper0().getRegisterNumber()], true);
 
-                regfile.changeFlags(available_reg, IRegFile.SET_USED | IRegFile.SET_INVALID, IRegFile.CLEAR_FLOAT | IRegFile.CLEAR_RENAMED);
+                if (ins.getOper0().isRegister()) {
 
-                Logger.out.println("Dest R" + oper0.getRegisterNumber() + ": P" + GlobalData.rat[oper0.getRegisterNumber()] + " released, P" + available_reg + " allocated");
+                    regfile.markRenamed(GlobalData.rat[ins.getOper0().getRegisterNumber()], true);
+                    regfile.changeFlags(available_reg, IRegFile.SET_USED | IRegFile.SET_INVALID, IRegFile.CLEAR_FLOAT | IRegFile.CLEAR_RENAMED);
 
-                GlobalData.rat[oper0.getRegisterNumber()] = available_reg;
+                    Logger.out.println("Dest R" + oper0.getRegisterNumber() + ": P" + GlobalData.rat[oper0.getRegisterNumber()] + " released, P" + available_reg + " allocated");
 
-                ins.getOper0().rename(available_reg);
+                    GlobalData.rat[oper0.getRegisterNumber()] = available_reg;
+                    ins.getOper0().rename(available_reg);
+                }
             }
 
             // This code is to prevent having more than one of the same regster
@@ -519,19 +521,16 @@ public class AllMyStages {
             }
 
             if (!opcode.oper0IsSource()) {
+
                 // @shree - renaming the destination
-                if (ins.getOpcode() == EnumOpcode.NOP || ins.getOpcode() == EnumOpcode.HALT) {
-                    // @shree - skipping renaming
-                } else {
+                if (ins.getOper0().isRegister()) {
 
                     regfile.markRenamed(GlobalData.rat[ins.getOper0().getRegisterNumber()], true);
-
                     regfile.changeFlags(available_reg, IRegFile.SET_USED | IRegFile.SET_INVALID, IRegFile.CLEAR_FLOAT | IRegFile.CLEAR_RENAMED);
 
                     Logger.out.println("Dest R" + oper0.getRegisterNumber() + ": P" + GlobalData.rat[oper0.getRegisterNumber()] + " released, P" + available_reg + " allocated");
 
                     GlobalData.rat[oper0.getRegisterNumber()] = available_reg;
-
                     ins.getOper0().rename(available_reg);
                 }
             }
@@ -541,13 +540,12 @@ public class AllMyStages {
             // and send it.
             // Mark the destination register invalid
             // @shree - updating the condition
-            if (opcode.needsWriteback()) {
-                int oper0reg = oper0.getRegisterNumber();
-                if (!regfile.isInvalid(oper0reg)) {
-                    //   regfile.markInvalid(oper0reg);
-                }
-            }
-
+//            if (opcode.needsWriteback()) {
+//                int oper0reg = oper0.getRegisterNumber();
+//                if (!regfile.isInvalid(oper0reg)) {
+//                    //   regfile.markInvalid(oper0reg);
+//                }
+//            }
             // Copy the forward# properties
             output.copyAllPropertiesFrom(input);
             // Copy the instruction
